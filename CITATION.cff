@@ -1,0 +1,13 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite the paper and the archived repository."
+title: "Code for: Spectral Minima and Persistent Homology of Flat Tori under Affine Metric Deformations"
+authors:
+  - family-names: "Dehghan Nezhad"
+    given-names: "Akbar"
+  - family-names: "Janati"
+    given-names: "Mojtaba"
+version: 1.0.0
+doi: 10.5281/zenodo.XXXXXXX
+date-released: 2026-10-25
+url: "https://github.com/YOUR_USERNAME/flat-tori-spectral-persistence"
+license: MIT

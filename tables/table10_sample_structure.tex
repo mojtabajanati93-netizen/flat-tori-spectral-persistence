@@ -1,0 +1,21 @@
+\begin{table}[htbp]\centering
+\caption{Sample-structure detection with a \emph{fixed} metric
+(\(n=3\), metric deformation \(\varepsilon=0.5\) frozen for both classes,
+averaged over 30 realizations). Class~0 is drawn uniformly on \(\T^3\);
+class~1 is a mixture of five Gaussian clusters (standard deviation \(0.1\)).
+Since \(\Lambda\) and \(\Theta\) depend only on the metric, they are
+\emph{exactly identical} for both classes and cannot distinguish them
+(chance-level accuracy \(0.50\)). The persistence diagram \(\mathrm{Dgm}_0\)
+captures the cluster structure and distinguishes the samples at near-ceiling
+accuracy (\(0.99\)). The joint descriptor inherits the success of
+\(\mathrm{Dgm}_0\). Together with Table~\ref{tab:small-eps}, this establishes
+that the joint descriptor is the only one that succeeds in \emph{both} the
+metric-dependent and the sample-dependent regime.}
+\label{tab:sample-structure}
+\begin{tabular}{lc}\hline
+Descriptor & Accuracy \\\hline
+Lambda & 0.50 (0.00) \\
+Theta & 0.50 (0.00) \\
+Diagram & 0.99 (0.02) \\
+Joint & 0.99 (0.02) \\
+\hline\end{tabular}\end{table}

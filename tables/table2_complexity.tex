@@ -1,0 +1,23 @@
+\begin{table}[htbp]\centering
+\caption{Certified candidate set size and median time for a single evaluation
+of \(\Lambda(\varepsilon)\), for \(n=2,\dots,9\). The threshold
+\(L_{\mathrm{cert}}=\lceil\sqrt{M/\mu}\rceil\) is derived from
+\Cref{lemma:finiteness} with \(m_0=e_1\) and depends on the eigenvalues of the
+deformation \(Q\) through the ratio \(M/\mu\); it is therefore not monotone
+in \(n\). The branch-and-bound enumeration combined with vectorized
+quadratic-form evaluation makes \(n=9\) feasible in under one second on a
+standard workstation, extending the reach of the grid-based approach beyond
+the \(n=8\) barrier reported in the literature. Times are medians over
+5 repetitions.}
+\label{tab:complexity}
+\begin{tabular}{cccc}\hline
+\(n\) & \(L_{\mathrm{cert}}\) & \(|\mathcal{M}_{\mathrm{cert}}|\) & Time (s) \\\hline
+2 & 4 & 24 & 0.0002 \\
+3 & 2 & 16 & 0.0002 \\
+4 & 3 & 212 & 0.0003 \\
+5 & 3 & 671 & 0.0003 \\
+6 & 3 & 2{,}098 & 0.0005 \\
+7 & 4 & 44{,}136 & 0.0084 \\
+8 & 4 & 153{,}024 & 0.0344 \\
+9 & 5 & 3{,}564{,}613 & 0.9844 \\
+\hline\end{tabular}\end{table}

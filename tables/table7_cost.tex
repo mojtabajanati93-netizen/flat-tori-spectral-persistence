@@ -1,0 +1,16 @@
+\begin{table}[htbp]\centering
+\caption{Computational cost comparison for \(n = 3\), \(N_{\mathrm{sample}} = 200\).
+Times and memory are medians over 5 repetitions; peak memory measured via
+\texttt{tracemalloc}. The spectral minimum is evaluated in microseconds thanks
+to the closed-form formula and vectorized implementation; the heat trace is
+slower due to the frequency-lattice sum; the persistence diagram dominates
+total cost. The heat-trace memory entry is a lower bound, as \texttt{tracemalloc}
+does not capture the transient allocations of the frequency-sum loop.}
+\label{tab:cost-comparison}
+\begin{tabular}{lcc}\hline
+Descriptor & Time (s) & Peak memory (MB) \\\hline
+\(\Lambda(\varepsilon)\) alone & 0.0002 & 0.02 \\
+\(\Theta_{0.1}(\varepsilon)\) alone & 0.0271 & \(<0.01\) \\
+\(\mathrm{Dgm}_1(X,d_\varepsilon)\) alone & 0.1037 & 0.84 \\
+Joint descriptor & 0.1310 & 0.84 \\
+\hline\end{tabular}\end{table}
