@@ -1,27 +1,17 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Script 1 (FINAL v4): Generate all 6 figures (Figure 1 to Figure 6).
+Script 1 (v7): Generate all 6 figures as PDF AND PNG.
 
-Confirmed working on:
-  - Python 3.10-3.13
-  - matplotlib >= 3.5 (uses $...$ for mathtext, not \(...\))
-  - numpy, ripser, persim
+Changes from v6:
+  - FIG3: Correct crossing point is eps = 19/24 ≈ 0.792 (was wrongly 19/8).
+  - FIG3: Dashed individual branches e_2 and e_2-e_3 shown for clarity.
+  - FIG3: Legend notes that the crossing is a monotone kink (both one-sided
+    derivatives negative), not a local extremum.
+  - Everything else identical to v6 (which was verified visually).
 
-Fixes applied in this version:
-  - All labels use $...$ (matplotlib-native math mode) instead of \(...\)
-    which caused literal backslash rendering in the original version.
-  - Figure 1 uses G = diag(1..n) and Q with q_1 = 2 to produce an
-    interior transverse crossing at eps_* = (n-1)/2.
-  - Figures 2 and 3 use the canonical example G = diag(1,2,3),
-    Q = diag(2,0,-1), giving a genuine transverse crossing at eps_* = 2/3.
-  - Figure 2 now shows the theoretical C_met * delta_eps bound and eps_*.
-  - Figure 3 marks eps_* in panel (a); panel (c) shows that the
-    bottleneck distance is continuous at eps_*.
-  - Safe handling of empty persistence diagrams (safe_bottleneck).
-  - Explicit seeds for every random quantity (reproducibility).
-
-Output: output_figures/*.pdf (6 files)
+Run:
+  python all_figures_v7.py
 """
 
 import numpy as np
@@ -29,6 +19,7 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import os
+from pathlib import Path
 from itertools import product
 import ripser
 from persim import bottleneck
@@ -52,17 +43,37 @@ OUTPUT_DIR = 'figures'
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 RANDOM_SEED = 42
 
-# Canonical example used in Figures 2 and 3
 G_CANON = np.diag([1.0, 2.0, 3.0])
 Q_CANON = np.diag([2.0, 0.0, -1.0])
 EPS_STAR_CANON = 2.0 / 3.0
 
+# Correct crossing point for the rank-one path (analytically verified):
+#   e_2 and e_2 - e_3 exchange at eps = 19/24.
+#   Both one-sided derivatives of Lambda are negative, so this is a
+#   monotone kink, not a local extremum.
+EPS_RANK_ONE_CROSS = 19.0 / 24.0
+
 
 # ============================================================
-# Helper functions
+# Save helper
+# ============================================================
+def save_figure(fig, basename):
+    pdf_path = os.path.join(OUTPUT_DIR, f"{basename}.pdf")
+    png_path = os.path.join(OUTPUT_DIR, f"{basename}.png")
+    fig.canvas.draw()
+    fig.savefig(pdf_path)
+    fig.savefig(png_path)
+    plt.close(fig)
+    pdf_kb = os.path.getsize(pdf_path) / 1024
+    png_kb = os.path.getsize(png_path) / 1024
+    status = "OK" if pdf_kb > 30 else "!! SMALL -- possibly empty"
+    print(f"    -> {basename}.pdf ({pdf_kb:.1f} KB), .png ({png_kb:.1f} KB)  [{status}]")
+
+
+# ============================================================
+# Helpers
 # ============================================================
 def generate_normalized_metric(n, seed):
-    """Random SPD matrix with trace(Q) = n."""
     rng = np.random.default_rng(seed)
     A = rng.standard_normal((n, n))
     Q = A.T @ A + 0.5 * np.eye(n)
@@ -70,9 +81,7 @@ def generate_normalized_metric(n, seed):
 
 
 def get_candidate_vectors(n, max_norm=5):
-    """Branch-and-bound enumeration of {m : |m|_2 <= max_norm, m != 0, m ~ -m}."""
     seen, Ms = set(), []
-
     def recurse(prefix, remaining_sq):
         if len(prefix) == n:
             if any(x != 0 for x in prefix):
@@ -85,13 +94,11 @@ def get_candidate_vectors(n, max_norm=5):
         mx = int(np.floor(np.sqrt(remaining_sq)))
         for x in range(-mx, mx + 1):
             recurse(prefix + (x,), remaining_sq - x * x)
-
     recurse((), max_norm ** 2)
     return np.array(Ms, dtype=int).reshape(-1, n) if Ms else np.empty((0, n), dtype=int)
 
 
 def compute_certified_L(G, Q, eps_range=(0.0, 3.0), n_samples=50):
-    """Certified L from Lemma 4.3 (m_0 = e_1)."""
     eps_samples = np.linspace(eps_range[0], eps_range[1], n_samples)
     eigvals = np.array([np.linalg.eigvalsh(G + eps * Q) for eps in eps_samples])
     mu = eigvals.min(); M = eigvals.max()
@@ -103,6 +110,12 @@ def compute_certified_L(G, Q, eps_range=(0.0, 3.0), n_samples=50):
 def compute_lambda_fast(g_eps, Ms):
     g_inv = np.linalg.inv(g_eps)
     return 4 * np.pi ** 2 * np.min(np.einsum('ki,ij,kj->k', Ms, g_inv, Ms))
+
+
+def compute_branch(g_eps, m):
+    """Evaluate a single spectral branch E_m(eps) = 4*pi^2 * m^T g^{-1} m."""
+    g_inv = np.linalg.inv(g_eps)
+    return 4 * np.pi ** 2 * (m @ g_inv @ m)
 
 
 def compute_heat_trace(g_eps, max_norm=5, t=0.1):
@@ -133,7 +146,6 @@ def get_persistence_diagram(D):
 
 
 def safe_bottleneck(dgm1, dgm2):
-    """Bottleneck distance, robust to empty diagrams."""
     dgm1 = dgm1 if len(dgm1) > 0 else np.empty((0, 2))
     dgm2 = dgm2 if len(dgm2) > 0 else np.empty((0, 2))
     try:
@@ -146,7 +158,6 @@ def safe_bottleneck(dgm1, dgm2):
 
 
 def detect_all_crossings(Q, G, eps_grid, Ms):
-    """All transverse crossings of the active minimizer."""
     E = np.zeros((len(eps_grid), len(Ms)))
     for i, eps in enumerate(eps_grid):
         g_inv = np.linalg.inv(G + eps * Q)
@@ -156,11 +167,9 @@ def detect_all_crossings(Q, G, eps_grid, Ms):
     crossings = []
     for idx in changes:
         m1, m2 = Ms[active[idx]], Ms[active[idx + 1]]
-
         def f(eps):
             g_inv = np.linalg.inv(G + eps * Q)
             return m1 @ g_inv @ m1 - m2 @ g_inv @ m2
-
         lo, hi = eps_grid[idx], eps_grid[idx + 1]
         for _ in range(60):
             mid = 0.5 * (lo + hi)
@@ -177,41 +186,63 @@ def detect_all_crossings(Q, G, eps_grid, Ms):
 
 
 # ============================================================
-# Figure 1: interior transverse crossing + percentile band
+# Figure 1
 # ============================================================
-def fig1_spectral_min():
-    """
-    For each n in {2, 3, 4}:
-      - G = diag(1, 2, ..., n), Q = diag(2, 0, ..., 0)
-      - interior transverse crossing at eps_* = (n-1)/2
-      - solid line: representative realization
-      - shaded band: 5-95 percentile across 50 realizations
-      - vertical line: theoretical eps_*
-    """
-    print("Generating Figure 1 (interior transverse crossing + percentile band)...")
-    fig, axes = plt.subplots(1, 3, figsize=(15, 5))
+def fig_analytic_example():
+    print("[1/6] Figure 1 (analytic example)...")
+    eps = np.linspace(-0.5, 0.5, 200)
+    E_10 = 4 * np.pi ** 2 / (1 + eps)
+    E_01 = 4 * np.pi ** 2 / (1 - eps)
+    Lam = np.minimum(E_10, E_01)
+
+    fig, ax = plt.subplots(figsize=(8, 6))
+    ax.plot(eps, E_10, 'b-', linewidth=1.5, label=r'$E_{(1,0)}(\varepsilon)$')
+    ax.plot(eps, E_01, 'g-', linewidth=1.5, label=r'$E_{(0,1)}(\varepsilon)$')
+    ax.plot(eps, Lam, 'r--', linewidth=2.5, label=r'$\Lambda(\varepsilon)$')
+    ax.plot(0, 4 * np.pi ** 2, 'ro', markersize=8)
+    ax.axvline(0, color='gray', linestyle=':', alpha=0.7)
+    ax.set_xlabel(r'$\varepsilon$')
+    ax.set_ylabel('Eigenvalue')
+    ax.set_title(r'Analytic crossing ($n=2$); corner at $\varepsilon_*=0$')
+    ax.legend(loc='best')
+    ax.grid(True, alpha=0.3)
+    plt.tight_layout()
+    save_figure(fig, 'fig_1_analytic')
+
+
+# ============================================================
+# Figure 2 (unchanged from v6)
+# ============================================================
+def fig_spectral_min():
+    print("[2/6] Figure 2 (spectral min + band)...")
+    fig, axes = plt.subplots(1, 3, figsize=(13, 8))
     n_real = 50
     eps_grid = np.linspace(0, 3, 200)
 
     for idx, n in enumerate([2, 3, 4]):
         ax = axes[idx]
         G = np.diag(np.arange(1, n + 1, dtype=float))
-        Q_ref = np.zeros((n, n))
-        Q_ref[0, 0] = 2.0
 
-        L_ref = compute_certified_L(G, Q_ref, eps_range=(0.0, 3.0))
-        Ms_ref = get_candidate_vectors(n, max_norm=max(L_ref, 3))
+        Q_list = []
+        max_L = 3
+        for r in range(n_real):
+            rng = np.random.default_rng(RANDOM_SEED + idx * 1000 + r)
+            Q_r = np.zeros((n, n))
+            Q_r[0, 0] = max(0.5, 2.0 + 0.15 * rng.standard_normal())
+            Q_list.append(Q_r)
+            L_r = compute_certified_L(G, Q_r, eps_range=(0.0, 3.0))
+            if L_r is not None:
+                max_L = max(max_L, L_r)
 
+        Ms_ref = get_candidate_vectors(n, max_norm=max_L)
+        print(f"      n={n}: max_L={max_L}, |M|={len(Ms_ref)}")
+
+        Q_ref = Q_list[0]
         lam_ref = np.array([compute_lambda_fast(G + eps * Q_ref, Ms_ref)
                             for eps in eps_grid])
 
         all_lambdas = np.zeros((n_real, len(eps_grid)))
-        for r in range(n_real):
-            rng = np.random.default_rng(RANDOM_SEED + idx * 1000 + r)
-            Q_r = np.zeros((n, n))
-            Q_r[0, 0] = 2.0 + 0.15 * rng.standard_normal()
-            if Q_r[0, 0] < 0.5:
-                Q_r[0, 0] = 0.5
+        for r, Q_r in enumerate(Q_list):
             for i, eps in enumerate(eps_grid):
                 all_lambdas[r, i] = compute_lambda_fast(G + eps * Q_r, Ms_ref)
 
@@ -234,20 +265,94 @@ def fig1_spectral_min():
         ax.grid(True, alpha=0.3)
 
     plt.tight_layout()
-    plt.savefig(os.path.join(OUTPUT_DIR, 'fig1_spectral_min.pdf'))
-    plt.close()
+    save_figure(fig, 'fig_2_spectral_band')
 
 
 # ============================================================
-# Figure 2: bottleneck distance with C_met bound and eps*
+# Figure 3  [FIXED: crossing at 19/24, not 19/8]
 # ============================================================
-def fig2_bottleneck():
-    """
-    Uses the canonical example G = diag(1,2,3), Q = diag(2,0,-1),
-    giving a genuine transverse crossing at eps_* = 2/3.
-    Shows the theoretical C_met * delta_eps bound.
-    """
-    print("Generating Figure 2 (with C_met line and eps_*)...")
+def fig_multiple_paths():
+    print("[3/6] Figure 3 (multiple paths, FIXED crossing 19/24)...")
+    n = 3
+    G = np.eye(n)
+    eps_grid = np.linspace(0, 3, 300)
+
+    rng_diag = np.random.default_rng(RANDOM_SEED + 2000)
+    diag_entries = rng_diag.uniform(0.1, 1.0, n)
+
+    # Rank-one PSD with a = [1, 3, -3], trace normalized to n.
+    # Analitically, the branches e_2 and e_2 - e_3 cross at eps = 19/24.
+    a = np.array([1.0, 3.0, -3.0])
+    Q_rank1 = n * np.outer(a, a) / (a @ a)
+
+    paths = {
+        'Random SPD': generate_normalized_metric(n, seed=RANDOM_SEED),
+        'Diagonal (positive)': np.diag(diag_entries),
+        'Rank-one PSD': Q_rank1,
+    }
+
+    L_max = 3
+    for Q in paths.values():
+        L = compute_certified_L(G, Q, eps_range=(0.0, 3.0))
+        if L is not None:
+            L_max = max(L_max, L)
+    Ms = get_candidate_vectors(n, max_norm=L_max)
+
+    fig, ax = plt.subplots(figsize=(10, 7))
+
+    # Plot the three minima
+    for name, Q in paths.items():
+        min_eig = min(np.linalg.eigvalsh(G + eps * Q).min() for eps in eps_grid)
+        if min_eig <= 1e-10:
+            print(f"      WARNING: path '{name}' becomes singular; skipped.")
+            continue
+        lambdas = [compute_lambda_fast(G + eps * Q, Ms) for eps in eps_grid]
+        ax.plot(eps_grid, lambdas, linewidth=1.8, label=name)
+
+    # [NEW] Show the two active branches along the rank-one path,
+    # to make the exchange visible.
+    e2 = np.array([0, 1, 0])
+    e2m3 = np.array([0, 1, -1])
+    branches_e2 = [compute_branch(G + eps * Q_rank1, e2) for eps in eps_grid]
+    branches_e2m3 = [compute_branch(G + eps * Q_rank1, e2m3) for eps in eps_grid]
+    ax.plot(eps_grid, branches_e2, color='gray', linestyle=':', linewidth=1.0,
+            alpha=0.7, label=r'$E_{e_2}$ (rank-one)')
+    ax.plot(eps_grid, branches_e2m3, color='gray', linestyle='--', linewidth=1.0,
+            alpha=0.7, label=r'$E_{e_2-e_3}$ (rank-one)')
+
+    # [FIXED] Crossing at eps = 19/24 (not 19/8)
+    ax.axvline(EPS_RANK_ONE_CROSS, color='red', linestyle=':', linewidth=1.8,
+               alpha=0.85,
+               label=rf'transverse crossing at $\varepsilon = 19/24 \approx {EPS_RANK_ONE_CROSS:.3f}$')
+
+    # Annotate the kink point
+    lam_at_cross = 4 * np.pi ** 2 * ((19 + 30*EPS_RANK_ONE_CROSS) /
+                                     (19 * (1 + 3*EPS_RANK_ONE_CROSS)))
+    ax.scatter([EPS_RANK_ONE_CROSS], [lam_at_cross], color='red', s=50, zorder=5)
+
+    ax.set_xlabel(r'$\varepsilon$')
+    ax.set_ylabel(r'$\Lambda(\varepsilon)$')
+    ax.set_title(r'Spectral minimum for three deformation paths ($n=3$)')
+    ax.legend(loc='upper right', fontsize=9, ncol=1, framealpha=0.9)
+    ax.grid(True, alpha=0.3)
+    ax.set_xlim(0, 3)
+
+    # Small text annotation about the kink type
+    ax.text(1.15, lam_at_cross + 4.5,
+            'monotone kink\n(both one-sided\nderivatives negative)',
+            fontsize=9, color='red', alpha=0.85,
+            bbox=dict(boxstyle='round,pad=0.3', facecolor='white',
+                      edgecolor='red', alpha=0.7))
+
+    plt.tight_layout()
+    save_figure(fig, 'fig_3_multiple_paths')
+
+
+# ============================================================
+# Figure 4 (unchanged from v6)
+# ============================================================
+def fig_bottleneck():
+    print("[4/6] Figure 4 (bottleneck + C_met)...")
     n = 3
     G, Q = G_CANON, Q_CANON
     L = compute_certified_L(G, Q, eps_range=(0.0, 2.5))
@@ -272,7 +377,7 @@ def fig2_bottleneck():
     C_met = q * np.sqrt(M * n) / (4 * mu)
     d_eps = eps_grid[1] - eps_grid[0]
 
-    fig, ax = plt.subplots(figsize=(9, 6))
+    fig, ax = plt.subplots(figsize=(9, 7))
     ax.plot(eps_grid[1:], dists[1:], 'b-', linewidth=1.5,
             label=r'$d_B(\mathrm{Dgm}_1(\varepsilon),\mathrm{Dgm}_1(\varepsilon+\Delta\varepsilon))$')
     ax.axhline(C_met * d_eps, color='gray', linestyle='--', linewidth=1.5,
@@ -289,16 +394,52 @@ def fig2_bottleneck():
     ax.legend(loc='best', fontsize=10)
     ax.grid(True, alpha=0.3)
     plt.tight_layout()
-    plt.savefig(os.path.join(OUTPUT_DIR, 'fig2_bottleneck.pdf'))
-    plt.close()
+    save_figure(fig, 'fig_4_bottleneck')
 
 
 # ============================================================
-# Figure 3: three descriptor components (canonical example)
+# Figure 5 (unchanged from v6)
 # ============================================================
-def fig3_descriptor_components():
-    """Three components of the descriptor, using the canonical example."""
-    print("Generating Figure 3 (three descriptor components)...")
+def fig_noise_robustness():
+    print("[5/6] Figure 5 (noise robustness)...")
+    n = 3
+    Q = generate_normalized_metric(n, seed=RANDOM_SEED)
+    G = np.eye(n)
+    g_eps = G + 1.0 * Q
+
+    rng = np.random.default_rng(RANDOM_SEED + 1000)
+    X_clean = rng.random((200, n))
+    ref_dgm = get_persistence_diagram(periodic_distance_matrix(X_clean, g_eps))
+
+    sigmas = np.linspace(0, 0.2, 20)
+    n_reps = 5
+    dists, stds = [], []
+    for sigma in sigmas:
+        run_d = []
+        for _ in range(n_reps):
+            X_noisy = (X_clean + sigma * rng.standard_normal((200, n))) % 1.0
+            D = periodic_distance_matrix(X_noisy, g_eps)
+            run_d.append(safe_bottleneck(ref_dgm, get_persistence_diagram(D)))
+        dists.append(np.mean(run_d))
+        stds.append(np.std(run_d))
+
+    fig, ax = plt.subplots(figsize=(8, 6))
+    ax.errorbar(sigmas, dists, yerr=stds, fmt='bo-', capsize=5,
+                label=rf'Observed ({n_reps} reps)')
+    ax.set_xlabel(r'Noise level $\sigma$')
+    ax.set_ylabel('Bottleneck distance')
+    ax.set_title(rf'Noise robustness ($n={n}$, {n_reps} reps per level)')
+    ax.legend(loc='best')
+    ax.grid(True, alpha=0.3)
+    plt.tight_layout()
+    save_figure(fig, 'fig_5_noise')
+
+
+# ============================================================
+# Figure 6 (unchanged from v6)
+# ============================================================
+def fig_descriptor_components():
+    print("[6/6] Figure 6 (descriptor components)...")
     n = 3
     G, Q = G_CANON, Q_CANON
     L = compute_certified_L(G, Q, eps_range=(0.0, 2.5))
@@ -340,132 +481,21 @@ def fig3_descriptor_components():
     for ax in axes:
         ax.grid(True, alpha=0.3)
     plt.tight_layout()
-    plt.savefig(os.path.join(OUTPUT_DIR, 'fig3_descriptor_components.pdf'))
-    plt.close()
-
-
-# ============================================================
-# Figure 4: multiple deformation paths with explicit seeds
-# ============================================================
-def fig4_multiple_paths():
-    """Three deformation paths with explicit seeds and PD check."""
-    print("Generating Figure 4 (multiple explicit paths)...")
-    n = 3
-    G = np.eye(n)
-    eps_grid = np.linspace(0, 3, 200)
-
-    rng_diag = np.random.default_rng(RANDOM_SEED + 2000)
-    rng_rank1 = np.random.default_rng(RANDOM_SEED + 3000)
-
-    diag_entries = rng_diag.uniform(0.1, 1.0, n)
-    a = rng_rank1.standard_normal(n)
-    Q_rank1 = np.outer(a, a) / (a @ a)
-
-    paths = {
-        'Random SPD': generate_normalized_metric(n, seed=RANDOM_SEED),
-        'Diagonal (positive)': np.diag(diag_entries),
-        'Rank-one PSD': Q_rank1,
-    }
-
-    L_max = max(compute_certified_L(G, Q, eps_range=(0.0, 3.0))
-                for Q in paths.values())
-    Ms = get_candidate_vectors(n, max_norm=max(L_max, 3))
-
-    fig, ax = plt.subplots(figsize=(10, 6))
-    for name, Q in paths.items():
-        min_eig = min(np.linalg.eigvalsh(G + eps * Q).min() for eps in eps_grid)
-        if min_eig <= 1e-10:
-            print(f"  WARNING: path '{name}' becomes singular; skipped.")
-            continue
-        lambdas = [compute_lambda_fast(G + eps * Q, Ms) for eps in eps_grid]
-        ax.plot(eps_grid, lambdas, linewidth=1.8, label=name)
-
-    ax.set_xlabel(r'$\varepsilon$')
-    ax.set_ylabel(r'$\Lambda(\varepsilon)$')
-    ax.set_title(r'Spectral minimum for three deformation paths ($n=3$)')
-    ax.legend(loc='best')
-    ax.grid(True, alpha=0.3)
-    plt.tight_layout()
-    plt.savefig(os.path.join(OUTPUT_DIR, 'fig4_multiple_paths.pdf'))
-    plt.close()
-
-
-# ============================================================
-# Figure 5: noise robustness
-# ============================================================
-def fig5_noise_robustness():
-    """Bottleneck distance vs. coordinate noise; 5 reps per level."""
-    print("Generating Figure 5 (noise robustness, 5 reps per level)...")
-    n = 3
-    Q = generate_normalized_metric(n, seed=RANDOM_SEED)
-    G = np.eye(n)
-    g_eps = G + 1.0 * Q
-
-    rng = np.random.default_rng(RANDOM_SEED + 1000)
-    X_clean = rng.random((200, n))
-    ref_dgm = get_persistence_diagram(periodic_distance_matrix(X_clean, g_eps))
-
-    sigmas = np.linspace(0, 0.2, 20)
-    n_reps = 5
-    dists, stds = [], []
-    for sigma in sigmas:
-        run_d = []
-        for _ in range(n_reps):
-            X_noisy = (X_clean + sigma * rng.standard_normal((200, n))) % 1.0
-            D = periodic_distance_matrix(X_noisy, g_eps)
-            run_d.append(safe_bottleneck(ref_dgm, get_persistence_diagram(D)))
-        dists.append(np.mean(run_d))
-        stds.append(np.std(run_d))
-
-    fig, ax = plt.subplots(figsize=(8, 6))
-    ax.errorbar(sigmas, dists, yerr=stds, fmt='bo-', capsize=5,
-                label=rf'Observed ({n_reps} reps)')
-    ax.set_xlabel(r'Noise level $\sigma$')
-    ax.set_ylabel('Bottleneck distance')
-    ax.set_title(rf'Noise robustness ($n={n}$, {n_reps} reps per level)')
-    ax.legend(loc='best')
-    ax.grid(True, alpha=0.3)
-    plt.tight_layout()
-    plt.savefig(os.path.join(OUTPUT_DIR, 'fig5_noise_robustness.pdf'))
-    plt.close()
-
-
-# ============================================================
-# Figure 6: analytic example (full symmetric interval)
-# ============================================================
-def fig6_analytic_example():
-    """Analytic crossing at eps=0 with a corner in Lambda."""
-    print("Generating Figure 6 (full analytic example)...")
-    eps = np.linspace(-0.5, 0.5, 200)
-    E_10 = 4 * np.pi ** 2 / (1 + eps)
-    E_01 = 4 * np.pi ** 2 / (1 - eps)
-    Lam = np.minimum(E_10, E_01)
-
-    fig, ax = plt.subplots(figsize=(8, 6))
-    ax.plot(eps, E_10, 'b-', linewidth=1.5, label=r'$E_{(1,0)}(\varepsilon)$')
-    ax.plot(eps, E_01, 'g-', linewidth=1.5, label=r'$E_{(0,1)}(\varepsilon)$')
-    ax.plot(eps, Lam, 'r--', linewidth=2.5, label=r'$\Lambda(\varepsilon)$')
-    ax.plot(0, 4 * np.pi ** 2, 'ro', markersize=8)
-    ax.axvline(0, color='gray', linestyle=':', alpha=0.7)
-    ax.set_xlabel(r'$\varepsilon$')
-    ax.set_ylabel('Eigenvalue')
-    ax.set_title(r'Analytic crossing ($n=2$); corner at $\varepsilon_*=0$')
-    ax.legend(loc='best')
-    ax.grid(True, alpha=0.3)
-    plt.tight_layout()
-    plt.savefig(os.path.join(OUTPUT_DIR, 'fig6_analytic_example.pdf'))
-    plt.close()
+    save_figure(fig, 'fig_6_descriptor')
 
 
 # ============================================================
 # Main
 # ============================================================
 if __name__ == "__main__":
-    print("Starting Figure Generation (FINAL v4)...\n")
-    fig1_spectral_min()
-    fig2_bottleneck()
-    fig3_descriptor_components()
-    fig4_multiple_paths()
-    fig5_noise_robustness()
-    fig6_analytic_example()
-    print(f"\nAll 6 figures saved in: {os.path.abspath(OUTPUT_DIR)}")
+    print("Starting Figure Generation (v7)...\n")
+    fig_analytic_example()
+    fig_spectral_min()
+    fig_multiple_paths()
+    fig_bottleneck()
+    fig_noise_robustness()
+    fig_descriptor_components()
+    print(f"\nAll figures saved in: {os.path.abspath(OUTPUT_DIR)}")
+    print("\nFiles (PDF + PNG):")
+    for f in sorted(Path(OUTPUT_DIR).glob('fig_*')):
+        print(f"  {f.name}: {f.stat().st_size:,} bytes")

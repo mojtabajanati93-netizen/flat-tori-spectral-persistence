@@ -1,13 +1,25 @@
 cff-version: 1.2.0
-message: "If you use this software, please cite the paper and the archived repository."
-title: "Code for: Spectral Minima and Persistent Homology of Flat Tori under Affine Metric Deformations"
+message: "If you use this code or data in your work, please cite the paper."
+title: "Spectral Minima and Persistent Homology of Flat Tori under Affine Metric Deformations"
 authors:
   - family-names: "Dehghan Nezhad"
     given-names: "Akbar"
+    affiliation: "School of Mathematics and Computer Science, Iran University of Science and Technology"
+    email: "dehghannezhad@iust.ac.ir"
   - family-names: "Janati"
     given-names: "Mojtaba"
+    affiliation: "School of Mathematics and Computer Science, Iran University of Science and Technology"
+    email: "mojtaba_janati@mathdep.iust.ac.ir"
 version: 1.0.0
-doi: 10.5281/zenodo.23652663
-date-released: 2026-10-25
-url: "https://github.com/mojtabajanati93-netizen/flat-tori-spectral-persistence"
+date-released: 2026-10-29
 license: MIT
+repository-code: "https://github.com/mojtabajanati93-netizen/flat-tori-spectral-persistence"
+doi: "10.5281/zenodo.23652663"
+keywords:
+  - flat torus
+  - Laplace-Beltrami spectrum
+  - eigenvalue crossing
+  - persistent homology
+  - Vietoris-Rips filtration
+  - metric deformation
+  - reproducibility

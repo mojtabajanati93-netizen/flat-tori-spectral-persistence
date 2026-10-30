@@ -1,0 +1,25 @@
+\begin{table}[htbp]\centering
+\caption{Classification accuracy at small deformation magnitudes (zero
+sampling noise, averaged over 30 realisations per entry). The \(\Lambda\)-only
+and \(\Theta\)-only classifiers achieve \(100\%\) in every entry and are
+therefore omitted from the table. In the present setup, where the metric is
+known to the classifier, this \(100\%\) is a consequence of the class being
+encoded in the metric; it is not a measure of the persistence component's
+performance. The \(\mathrm{Dgm}_1\)-only classifier degrades sharply as
+\(\varepsilon \to 0\), reaching the chance level (\(\approx 50\%\)) at
+\(\varepsilon=0.01\) for all dimensions. Recovery with increasing \(n\) is
+faster: at \(\varepsilon=0.05\), accuracy rises from \(0.57\) (\(n=2\)) to
+\(0.77\) (\(n=4\)), reflecting the stronger metric signal in higher
+dimensions. The joint descriptor remains at \(100\%\) in every entry because
+it inherits the metric-dependent information of its spectral components.}
+\label{tab:small-eps}
+\small
+\begin{tabular}{c|ccc|ccc}\hline
+& \multicolumn{3}{c|}{\(\mathrm{Dgm}_1\)-only} & \multicolumn{3}{c}{Joint descriptor} \\
+\(\varepsilon\) & \(n=2\) & \(n=3\) & \(n=4\) & \(n=2\) & \(n=3\) & \(n=4\) \\\hline
+0.01 & 0.53 (0.10) & 0.54 (0.11) & 0.50 (0.11) & 1.00 (0.00) & 1.00 (0.00) & 1.00 (0.00) \\
+0.02 & 0.49 (0.09) & 0.52 (0.10) & 0.62 (0.12) & 1.00 (0.00) & 1.00 (0.00) & 1.00 (0.00) \\
+0.05 & 0.57 (0.12) & 0.69 (0.11) & 0.77 (0.11) & 1.00 (0.00) & 1.00 (0.00) & 1.00 (0.00) \\
+0.10 & 0.86 (0.08) & 0.95 (0.04) & 0.96 (0.05) & 1.00 (0.00) & 1.00 (0.00) & 1.00 (0.00) \\
+0.50 & 1.00 (0.00) & 1.00 (0.00) & 1.00 (0.00) & 1.00 (0.00) & 1.00 (0.00) & 1.00 (0.00) \\
+\hline\end{tabular}\end{table}

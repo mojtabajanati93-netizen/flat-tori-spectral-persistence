@@ -1,6 +1,7 @@
-numpy
-scipy
-ripser
-persim
-scikit-learn
-matplotlib
+# Python 3.10+
+numpy>=1.24,<2.0
+scipy>=1.10,<2.0
+ripser>=0.6.0,<1.0
+persim>=0.3.0,<1.0
+scikit-learn>=1.2,<2.0
+matplotlib>=3.7,<4.0
